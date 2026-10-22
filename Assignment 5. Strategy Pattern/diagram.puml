@@ -1,0 +1,151 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam monochrome false
+skinparam shadowing false
+skinparam roundcorner 8
+
+title Assignment 5: Strategy Pattern in Exam Proctoring
+
+' ==========================================================
+' FAMILY 1: RISK SCORING STRATEGY
+' ==========================================================
+package "proctoring.strategy.risk" {
+    interface RiskScoringStrategy {
+        + calculateRisk(telemetry: ExamSessionTelemetry): double
+        + getStrategyName(): String
+    }
+
+    class StrictBiometricRiskStrategy implements RiskScoringStrategy {
+        + calculateRisk(telemetry: ExamSessionTelemetry): double
+        + getStrategyName(): String
+    }
+
+    class ProcessKeystrokeRiskStrategy implements RiskScoringStrategy {
+        + calculateRisk(telemetry: ExamSessionTelemetry): double
+        + getStrategyName(): String
+    }
+
+    class NetworkThreatAdaptiveRiskStrategy implements RiskScoringStrategy {
+        - threatFeed: ThreatIntelligenceFeed
+        + NetworkThreatAdaptiveRiskStrategy(threatFeed: ThreatIntelligenceFeed)
+        + calculateRisk(telemetry: ExamSessionTelemetry): double
+        + getStrategyName(): String
+    }
+
+    class RiskAssessmentContext {
+        - strategy: RiskScoringStrategy
+        + RiskAssessmentContext(strategy: RiskScoringStrategy)
+        + setStrategy(strategy: RiskScoringStrategy): void
+        + getStrategy(): RiskScoringStrategy
+        + assessRisk(telemetry: ExamSessionTelemetry): double
+    }
+
+    class RiskStrategySelector {
+        - threatFeed: ThreatIntelligenceFeed
+        + RiskStrategySelector(threatFeed: ThreatIntelligenceFeed)
+        + selectStrategy(mode: ExamDeliveryMode, riskTier: int): RiskScoringStrategy
+    }
+
+    RiskAssessmentContext o-- RiskScoringStrategy : "delegates to"
+    RiskStrategySelector ..> RiskScoringStrategy : "creates / selects"
+}
+
+' ==========================================================
+' EXTERNAL DATA SOURCE (Isolation from Change - Clean Code Ch 10)
+' ==========================================================
+package "proctoring.strategy.external" {
+    interface ThreatIntelligenceFeed {
+        + isHighRiskNetwork(ipAddress: String): boolean
+        + getSubnetThreatScore(ipAddress: String): double
+    }
+
+    class SimulatedThreatIntelligenceFeed implements ThreatIntelligenceFeed {
+        + isHighRiskNetwork(ipAddress: String): boolean
+        + getSubnetThreatScore(ipAddress: String): double
+    }
+
+    NetworkThreatAdaptiveRiskStrategy --> ThreatIntelligenceFeed : "queries external feed"
+    RiskStrategySelector --> ThreatIntelligenceFeed
+}
+
+' ==========================================================
+' FAMILY 2: GRADING & CURVING STRATEGY
+' ==========================================================
+package "proctoring.strategy.grading" {
+    interface GradingCurveStrategy {
+        + computeFinalScore(submission: RawExamSubmission): double
+        + getStrategyName(): String
+    }
+
+    class RawPercentageGradingStrategy implements GradingCurveStrategy {
+        + computeFinalScore(submission: RawExamSubmission): double
+        + getStrategyName(): String
+    }
+
+    class BellCurveGradingStrategy implements GradingCurveStrategy {
+        + computeFinalScore(submission: RawExamSubmission): double
+        + getStrategyName(): String
+    }
+
+    class ProctoringPenaltyGradingStrategy implements GradingCurveStrategy {
+        + computeFinalScore(submission: RawExamSubmission): double
+        + getStrategyName(): String
+    }
+
+    class GradingContext {
+        - strategy: GradingCurveStrategy
+        + GradingContext(strategy: GradingCurveStrategy)
+        + setStrategy(strategy: GradingCurveStrategy): void
+        + getStrategy(): GradingCurveStrategy
+        + calculateGrade(submission: RawExamSubmission): double
+    }
+
+    class GradingStrategySelector {
+        + selectStrategy(policy: CourseGradingPolicy, hasFlags: boolean): GradingCurveStrategy
+    }
+
+    GradingContext o-- GradingCurveStrategy : "delegates to"
+    GradingStrategySelector ..> GradingCurveStrategy : "creates / selects"
+}
+
+' ==========================================================
+' DOMAIN MODEL
+' ==========================================================
+package "proctoring.strategy.model" {
+    class ExamSessionTelemetry {
+        - studentId: String
+        - gazeAversionSeconds: double
+        - faceDisappearanceCount: int
+        - audioDecibelSpikes: int
+        - tabSwitches: int
+        - copyPasteEvents: int
+        - unauthorizedProcessesCount: int
+        - clientIpAddress: String
+    }
+
+    class RawExamSubmission {
+        - studentId: String
+        - correctAnswers: int
+        - totalQuestions: int
+        - confirmedProctoringAnomalies: int
+        - cohortAverage: double
+        - cohortStandardDeviation: double
+    }
+
+    enum ExamDeliveryMode {
+        REMOTE_HIGH_STAKES
+        REMOTE_UNSUPERVISED
+        CAMPUS_LAB_MONITORED
+    }
+
+    enum CourseGradingPolicy {
+        ABSOLUTE_STANDARD
+        BELL_CURVE_NORMALIZED
+        STRICT_INTEGRITY_WEIGHTED
+    }
+}
+
+RiskScoringStrategy ..> ExamSessionTelemetry : "analyzes"
+GradingCurveStrategy ..> RawExamSubmission : "computes"
+
+@enduml
