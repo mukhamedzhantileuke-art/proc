@@ -1,0 +1,232 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam monochrome false
+skinparam shadowing false
+skinparam roundcorner 8
+
+title Assignment 4: Three-Stage Chain with Facade & Compensation (Exam Proctoring)
+
+' ==========================================================
+' CLIENT LAYER
+' ==========================================================
+class Client {
+}
+
+' ==========================================================
+' FACADE LAYER (Principle of Least Knowledge Shield)
+' ==========================================================
+package "proctoring.facade" {
+    class ExamProctoringFacade {
+        - intakeService: IntakeService
+        - monitoringService: MonitoringService
+        - gradingService: GradingService
+        - journalRepository: ChainJournalRepository
+        + conductExamSession(...): ExamResultSummary
+    }
+
+    class ProctoringAdminFacade {
+        - intakeService: IntakeService
+        - monitoringService: MonitoringService
+        - gradingService: GradingService
+        - journalRepository: ChainJournalRepository
+        + listAllChains(): List<ChainExecutionJournal>
+        + inspectStudentFullState(studentId, examCode): String
+        + resumeOrRollbackBrokenChain(studentId, examCode): boolean
+        + purgeAllStorage(): void
+    }
+
+    class ExamResultSummary {
+        - studentId: String
+        - examCode: String
+        - intakeStatus: VerificationStatus
+        - monitoringStatus: MonitoringStatus
+        - gradingStatus: GradingStatus
+        - score: double
+        - letterGrade: String
+    }
+}
+
+Client --> ExamProctoringFacade : "calls conductExamSession()"
+Client --> ProctoringAdminFacade : "inspects & recovers"
+
+' ==========================================================
+' DURABLE CHAIN JOURNAL LAYER
+' ==========================================================
+package "proctoring.chain" {
+    enum ChainStepStatus {
+        NOT_STARTED
+        STAGE_A_COMMITTED
+        STAGE_B_COMMITTED
+        CHAIN_COMPLETED
+        COMPENSATING_A
+        COMPENSATED_A
+        COMPENSATING_B_A
+        COMPENSATED_B_A
+    }
+
+    class ChainExecutionJournal {
+        - studentId: String
+        - examCode: String
+        - status: ChainStepStatus
+        - statusMessage: String
+        - lastUpdated: long
+        + transitionTo(status, msg): void
+    }
+
+    class ChainJournalRepository {
+        - storageDirectory: Path
+        + save(journal): void
+        + findByStudentAndExam(studentId, examCode): Optional
+        + findAll(): List
+    }
+
+    ChainExecutionJournal --> ChainStepStatus
+    ChainJournalRepository ..> ChainExecutionJournal : "persists to disk"
+}
+
+' ==========================================================
+' SUBSYSTEM A: INTAKE & RESERVATION
+' ==========================================================
+package "proctoring.intake" {
+    class IntakeService {
+        - validator: BiometricValidator
+        - gateway: IntakePersistenceGateway
+        + verifyAndReserveSlot(...): VerificationRecord
+        + compensateReservation(...): void
+        + getRecord(...): Optional
+    }
+
+    class BiometricValidator {
+        + validateStudentCredentials(...): boolean
+        + isStudentSuspended(...): boolean
+    }
+
+    enum VerificationStatus {
+        PENDING
+        VERIFIED_RESERVED
+        REVOKED
+    }
+
+    class VerificationRecord {
+        - studentId: String
+        - examCode: String
+        - status: VerificationStatus
+        + markVerifiedAndReserved(): void
+        + revokeReservation(reason): void
+    }
+
+    class IntakePersistenceGateway {
+        - storageDirectory: Path
+        + save(record): void
+        + findByStudentAndExam(...): Optional
+    }
+
+    IntakeService --> BiometricValidator
+    IntakeService --> IntakePersistenceGateway
+    VerificationRecord --> VerificationStatus
+    IntakePersistenceGateway ..> VerificationRecord : "persists to disk"
+}
+
+' ==========================================================
+' SUBSYSTEM B: LIVE PROCTORING & MONITORING
+' ==========================================================
+package "proctoring.monitoring" {
+    class MonitoringService {
+        - integrityRule: HardwareIntegrityRule
+        - gateway: MonitoringPersistenceGateway
+        + startAndCompleteMonitoring(...): MonitoringSession
+        + compensateSession(...): void
+        + getSession(...): Optional
+    }
+
+    class HardwareIntegrityRule {
+        + isDisplayConfigurationValid(activeDisplays): boolean
+        + isWebcamFeedOperational(webcamActive): boolean
+        + hasSuspiciousForegroundProcess(processName): boolean
+    }
+
+    enum MonitoringStatus {
+        INITIALIZED
+        PASSED_CLEAN
+        FLAGGED_VIOLATION
+        ROLLBACK_INVALIDATED
+    }
+
+    class MonitoringSession {
+        - sessionId: String
+        - status: MonitoringStatus
+        + recordPassedClean(): void
+        + recordFlaggedViolation(reason): void
+        + compensateAndInvalidate(reason): void
+    }
+
+    class MonitoringPersistenceGateway {
+        - storageDirectory: Path
+        + save(session): void
+        + findByStudentAndExam(...): Optional
+    }
+
+    MonitoringService --> HardwareIntegrityRule
+    MonitoringService --> MonitoringPersistenceGateway
+    MonitoringSession --> MonitoringStatus
+    MonitoringPersistenceGateway ..> MonitoringSession : "persists to disk"
+}
+
+' ==========================================================
+' SUBSYSTEM C: GRADING & CERTIFICATION
+' ==========================================================
+package "proctoring.grading" {
+    class GradingService {
+        - integrityEngine: SubmissionIntegrityEngine
+        - gateway: GradingPersistenceGateway
+        + evaluateAndCertify(...): ExamTranscriptRecord
+        + compensateTranscript(...): void
+        + getRecord(...): Optional
+    }
+
+    class SubmissionIntegrityEngine {
+        + verifySubmissionChecksum(answers, checksum): boolean
+        + computeScore(answers): double
+        + determineLetterGrade(score): String
+        + {static} computeSha256(data): String
+    }
+
+    enum GradingStatus {
+        AWAITING_EVALUATION
+        CERTIFIED_RECORDED
+        INTEGRITY_REJECTED
+    }
+
+    class ExamTranscriptRecord {
+        - transcriptId: String
+        - status: GradingStatus
+        - finalScore: double
+        - letterGrade: String
+        + certifyGrade(score, grade): void
+        + rejectIntegrity(reason): void
+    }
+
+    class GradingPersistenceGateway {
+        - storageDirectory: Path
+        + save(record): void
+        + findByStudentAndExam(...): Optional
+    }
+
+    GradingService --> SubmissionIntegrityEngine
+    GradingService --> GradingPersistenceGateway
+    ExamTranscriptRecord --> GradingStatus
+    GradingPersistenceGateway ..> ExamTranscriptRecord : "persists to disk"
+}
+
+' Facade Associations (Orchestrates A, B, C & Chain Journal)
+ExamProctoringFacade --> IntakeService : "1. Step A"
+ExamProctoringFacade --> MonitoringService : "2. Step B"
+ExamProctoringFacade --> GradingService : "3. Step C"
+ExamProctoringFacade --> ChainJournalRepository : "updates journal"
+
+ProctoringAdminFacade --> IntakeService
+ProctoringAdminFacade --> MonitoringService
+ProctoringAdminFacade --> GradingService
+ProctoringAdminFacade --> ChainJournalRepository
+
+@enduml
