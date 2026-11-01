@@ -3,7 +3,7 @@
 - **Course:** Software Design Patterns (AITU)
 - **Group:** SE-2531
 - **Student:** Mukhamedzhan Tileuke
-- **Assigned Domain:** 🎓 **Variant 12: Exam Proctoring**
+  
 
 ---
 
@@ -49,7 +49,7 @@ This project implements a durable, fault-tolerant orchestration layer using the 
 
 ## 2. Principle of Least Knowledge (Law of Demeter) - Section 3.5
 
-### ❌ BEFORE (Without Facade - High Coupling & "Train Wreck"):
+### BEFORE (Without Facade - High Coupling & "Train Wreck"):
 The client had to instantiate, coordinate, and navigate deep object chains across all three unrelated subsystems:
 ```java
 // Client violates Law of Demeter: talks to friends of friends
@@ -66,7 +66,7 @@ if (record.getStatus() == VerificationStatus.VERIFIED_RESERVED) {
 }
 ```
 
-### ✅ AFTER (With Facade - Clean Encapsulation):
+### AFTER (With Facade - Clean Encapsulation):
 The client talks **only to its immediate friend (`ExamProctoringFacade`)** via a single method:
 ```java
 ExamResultSummary result = proctoringFacade.conductExamSession(
