@@ -3,7 +3,7 @@
 - **Course:** Software Design Patterns (AITU)
 - **Group:** SE-2531
 - **Student:** Mukhamedzhan Tileuke
-- **Theme:** 🎓 **Variant 12: Exam Proctoring** (Interchangeable Risk Scoring & Grade Curving Strategies)
+- **Theme: **Variant 12: Exam Proctoring** (Interchangeable Risk Scoring & Grade Curving Strategies)
 
 ---
 
@@ -59,7 +59,7 @@ Each family features:
 
 ## 4. Refactoring with Git History (Requirement 4)
 
-### ❌ Before (Monolithic Anti-Pattern with `switch`):
+### Before (Monolithic Anti-Pattern with `switch`):
 Class: `LegacyMonolithicRiskCalculator.java`
 ```java
 public double calculateRisk(String algorithmType, ExamSessionTelemetry telemetry) {
@@ -80,7 +80,7 @@ public double calculateRisk(String algorithmType, ExamSessionTelemetry telemetry
 ```
 * **Violations:** Violates Open/Closed Principle (adding a new algorithm forces modifying and recompiling this class). Violates Single Responsibility Principle (one class knows all three distinct calculation logics).
 
-### ✅ After (Refactored Strategy Pattern):
+### After (Refactored Strategy Pattern):
 * Each algorithm is encapsulated into its own dedicated class implementing `RiskScoringStrategy`.
 * The `RiskAssessmentContext` delegates purely through polymorphism:
 ```java
